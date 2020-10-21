@@ -209,11 +209,9 @@ CreateThread(function()
 					BlipAddForEntity(Config.UndeadBlip, ped)
 				end
 
-				if IsPedMale(ped) then
-					Citizen.InvokeNative(0x89F5E7ADECCCB49C, ped, 'very_drunk')
-				else
-					Citizen.InvokeNative(0x89F5E7ADECCCB49C, ped, 'injured_general')
-				end
+				local walkingStyle = Config.WalkingStyles[math.random(#Config.WalkingStyles)]
+				Citizen.InvokeNative(0x923583741DC87BCE, ped, walkingStyle[1])
+				Citizen.InvokeNative(0x89F5E7ADECCCB49C, ped, walkingStyle[2])
 
 				SetEntityMaxHealth(ped, Config.UndeadHealth)
 				SetEntityHealth(ped, Config.UndeadHealth, 0)
