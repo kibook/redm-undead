@@ -1,3 +1,9 @@
+local ZoneBlip = nil
+local CurrentZone = nil
+local Undead = {}
+
+RegisterNetEvent('undead:setZone')
+
 local entityEnumerator = {
 	__gc = function(enum)
 		if enum.destructor and enum.handle then
@@ -59,15 +65,37 @@ function BlipAddForEntity(blip, entity)
 	return Citizen.InvokeNative(0x23f74c2fda6e7c61, blip, entity)
 end
 
+function BlipAddForRadius(blipHash, x, y, z, radius)
+	return Citizen.InvokeNative(0x45F13B7E0A15C880, blipHash, x, y, z, radius)
+end
+
+function SetBlipNameFromPlayerString(blip, playerString)
+	return Citizen.InvokeNative(0x9CB1A1623062F402, blip, playerString)
+end
+
 function DelEnt(entity)
 	SetEntityAsMissionEntity(entity, true, true)
 	DeleteEntity(entity)
 	SetEntityAsNoLongerNeeded(entity)
 end
 
-function ClearPeds()
+function IsInZone(ped, zone)
+	if not zone then
+		return false
+	end
+
+	if not zone.radius then
+		return true
+	end
+
+	local x, y, z = table.unpack(GetEntityCoords(ped))
+
+	return GetDistanceBetweenCoords(x, y, z, zone.x, zone.y, zone.z, false) <= zone.radius
+end
+
+function ClearPedsInZone(zone)
 	for ped in EnumeratePeds() do
-		if not IsPedAPlayer(ped) then
+		if not IsPedAPlayer(ped) and IsInZone(ped, zone) then
 			DelEnt(ped)
 		end
 	end
@@ -86,10 +114,6 @@ function IsUndead(ped)
 end
 
 function ShouldBecomeUndead(ped)
-	if IsPedAPlayer(ped) then
-		return false
-	end
-
 	if IsPedInGroup(ped) then
 		return false
 	end
@@ -98,7 +122,7 @@ function ShouldBecomeUndead(ped)
 		return false
 	end
 
-	if IsUndead(ped) then
+	if not IsInZone(ped, CurrentZone) then
 		return false
 	end
 
@@ -106,14 +130,6 @@ function ShouldBecomeUndead(ped)
 end
 
 function ShouldCleanUp(ped1)
-	if IsPedAPlayer(ped1) then
-		return false
-	end
-
-	if not IsUndead(ped1) then
-		return false
-	end
-
 	local x1, y1, z1 = table.unpack(GetEntityCoords(ped1))
 
 	for _, player in ipairs(GetActivePlayers()) do
@@ -144,88 +160,152 @@ function HasAnyPlayerLos(ped)
 	return false
 end
 
+AddEventHandler('undead:setZone', function(zone)
+	if CurrentZone and zone and CurrentZone.name == zone.name then
+		return
+	end
+
+	if ZoneBlip then
+		RemoveBlip(ZoneBlip)
+	end
+
+	ClearPedsInZone(CurrentZone)
+	ClearPedsInZone(zone)
+
+	CurrentZone = zone
+
+	if not zone then
+		return
+	end
+
+	if zone.radius then
+		ZoneBlip = BlipAddForRadius(Config.ZoneBlipSprite, zone.x, zone.y, zone.z, zone.radius)
+		SetBlipNameFromPlayerString(ZoneBlip, CreateVarString(10, 'LITERAL_STRING', 'Undead Infestation'))
+		exports.notifications:Notify('An undead infestation has appeared in ' .. zone.name)
+	end
+end)
+
 AddEventHandler('onResourceStop', function(resourceName)
 	if GetCurrentResourceName() == resourceName then
-		ClearPeds()
+		if ZoneBlip then
+			RemoveBlip(ZoneBlip)
+		end
+		ClearPedsInZone(CurrentZone)
 		RemoveRelationshipGroup('undead')
 	end
 end)
 
-CreateThread(function()
-	ClearPeds()
+function UpdateUndead(ped)
+	if IsPedDeadOrDying(ped) then
+		if Undead[ped] then
+			if GetPedSourceOfDeath(ped) == PlayerPedId() then
+				TriggerServerEvent('undead:playerKilledUndead')
+			end
 
+			Undead[ped] = nil
+		end
+
+		SetPedAsNoLongerNeeded(ped)
+	elseif not Undead[ped] then
+		Undead[ped] = true
+	end
+
+	if ShouldCleanUp(ped) then
+		DelEnt(ped)
+		Undead[ped] = nil
+	end
+end
+
+function AddUndeadSpawn(spawns, ped)
+	local x, y, z = table.unpack(GetEntityCoords(ped))
+	local h = GetEntityHeading(ped)
+	local hasLos = HasAnyPlayerLos(ped)
+
+	if IsPedInAnyVehicle(ped, false) then
+		local veh = GetVehiclePedIsIn(ped, false)
+		local model = GetEntityModel(veh)
+
+		if not IsThisModelATrain(model) and not IsThisModelABoat(model) then
+			DelEnt(veh)
+		end
+	end
+
+	Wait(0)
+
+	table.insert(spawns, {ped = ped, x = x, y = y, z = z, h = h, hasLos = hasLos})
+
+	DelEnt(ped)
+end
+
+function CreateUndeadSpawns()
+	local spawns = {}
+
+	for ped in EnumeratePeds() do
+		if not IsPedAPlayer(ped) then
+			if IsUndead(ped) then
+				UpdateUndead(ped)
+			elseif ShouldBecomeUndead(ped) then
+				AddUndeadSpawn(spawns, ped)
+			end
+		end
+	end
+
+	return spawns
+end
+
+function SpawnUndead(spawns)
+	for _, spawn in ipairs(spawns) do
+		if not DoesEntityExist(spawn.ped) and not spawn.hasLos then
+			local undead = UndeadPeds[math.random(#UndeadPeds)]
+			local model = GetHashKey(undead.model)
+
+			RequestModel(model)
+			while not HasModelLoaded(model) do
+				Wait(0)
+			end
+
+			local ped = CreatePed_2(model, spawn.x, spawn.y, spawn.z, spawn.h, true, false, false, false)
+			SetModelAsNoLongerNeeded(model)
+
+			SetPedOutfitPreset(ped, undead.outfit)
+
+			if Config.ShowBlips then
+				BlipAddForEntity(Config.UndeadBlipSprite, ped)
+			end
+
+			local walkingStyle = Config.WalkingStyles[math.random(#Config.WalkingStyles)]
+			Citizen.InvokeNative(0x923583741DC87BCE, ped, walkingStyle[1])
+			Citizen.InvokeNative(0x89F5E7ADECCCB49C, ped, walkingStyle[2])
+
+			SetEntityMaxHealth(ped, Config.UndeadHealth)
+			SetEntityHealth(ped, Config.UndeadHealth, 0)
+
+			SetPedRelationshipGroupHash(ped, `undead`)
+			SetPedCombatAttributes(ped, 46, true)
+			SetPedFleeAttributes(ped, 0, 0)
+			SetPedAsCop(ped, true)
+			SetPedCombatMovement(ped, 3)
+
+			TaskWanderStandard(ped, 10.0, 10)
+
+			Undead[ped] = true
+		end
+	end
+end
+
+CreateThread(function()
 	AddRelationshipGroup('undead')
 	SetRelationshipBetweenGroups(5, `undead`, `PLAYER`)
 	SetRelationshipBetweenGroups(5, `PLAYER`, `undead`)
 
+	TriggerServerEvent('undead:newPlayer')
+
 	while true do
 		Wait(0)
 
-		local spawns = {}
-
-		for ped in EnumeratePeds() do
-			Wait(0)
-
-			if ShouldBecomeUndead(ped) then
-				local x, y, z = table.unpack(GetEntityCoords(ped))
-				local h = GetEntityHeading(ped)
-				local hasLos = HasAnyPlayerLos(ped)
-
-				if IsPedInAnyVehicle(ped, false) then
-					local veh = GetVehiclePedIsIn(ped, false)
-					local model = GetEntityModel(veh)
-
-					if not IsThisModelATrain(model) and not IsThisModelABoat(model) then
-						DelEnt(veh)
-					end
-				end
-
-				table.insert(spawns, {ped = ped, x = x, y = y, z = z, h = h, hasLos = hasLos})
-
-				DelEnt(ped)
-			elseif ShouldCleanUp(ped) then
-				DelEnt(ped)
-			elseif IsPedDeadOrDying(ped) then
-				SetPedAsNoLongerNeeded(ped)
-			end
-		end
-
-		for _, spawn in ipairs(spawns) do
-			if not DoesEntityExist(spawn.ped) and not spawn.hasLos then
-				local undead = UndeadPeds[math.random(#UndeadPeds)]
-				local model = GetHashKey(undead.model)
-
-				RequestModel(model)
-				while not HasModelLoaded(model) do
-					Wait(0)
-				end
-
-				local ped = CreatePed_2(model, spawn.x, spawn.y, spawn.z, spawn.h, true, false, false, false)
-				SetModelAsNoLongerNeeded(model)
-
-				SetPedOutfitPreset(ped, undead.outfit)
-
-				if Config.ShowBlips then
-					BlipAddForEntity(Config.UndeadBlip, ped)
-				end
-
-				local walkingStyle = Config.WalkingStyles[math.random(#Config.WalkingStyles)]
-				Citizen.InvokeNative(0x923583741DC87BCE, ped, walkingStyle[1])
-				Citizen.InvokeNative(0x89F5E7ADECCCB49C, ped, walkingStyle[2])
-
-				SetEntityMaxHealth(ped, Config.UndeadHealth)
-				SetEntityHealth(ped, Config.UndeadHealth, 0)
-
-				SetPedRelationshipGroupHash(ped, `undead`)
-				SetPedCombatAttributes(ped, 46, true)
-				SetPedFleeAttributes(ped, 0, 0)
-				SetPedAsCop(ped, true)
-				SetPedCombatMovement(ped, 3)
-
-				TaskWanderStandard(ped, 10.0, 10)
-			else
-				SetEntityHealth(ped, 0.0, 0)
-			end
+		if CurrentZone then
+			local spawns = CreateUndeadSpawns()
+			SpawnUndead(spawns)
 		end
 	end
 end)
