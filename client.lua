@@ -241,6 +241,7 @@ function CreateUndeadSpawns()
 	local spawns = {}
 
 	for ped in EnumeratePeds() do
+		Wait(0)
 		if not IsPedAPlayer(ped) then
 			if IsUndead(ped) then
 				UpdateUndead(ped)
