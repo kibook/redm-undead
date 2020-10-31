@@ -7,6 +7,7 @@ Config.UndeadBlipSprite = -839369609
 Config.ZoneBlipSprite = 693035517
 Config.DefaultZone = 'world'
 --Config.ZoneTimeout = 1800
+Config.EnableSql = true
 
 Config.WalkingStyles = {
 	{'default', 'very_drunk'},

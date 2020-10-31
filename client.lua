@@ -3,6 +3,8 @@ local CurrentZone = nil
 local Undead = {}
 
 RegisterNetEvent('undead:setZone')
+RegisterNetEvent('undead:updateScoreboard')
+RegisterNetEvent('undead:updateTotalUndeadKilled')
 
 local entityEnumerator = {
 	__gc = function(enum)
@@ -293,6 +295,30 @@ function SpawnUndead(spawns)
 		end
 	end
 end
+
+local ScoreboardIsOpen = false
+
+RegisterCommand('undeadscore', function(source, args, raw)
+	ScoreboardIsOpen = not ScoreboardIsOpen
+
+	SendNUIMessage({
+		type = 'toggleScoreboard'
+	})
+end, false)
+
+AddEventHandler('undead:updateScoreboard', function(results)
+	SendNUIMessage({
+		type = 'updateScoreboard',
+		scores = json.encode(results)
+	})
+end)
+
+AddEventHandler('undead:updateTotalUndeadKilled', function(total)
+	SendNUIMessage({
+		type = 'updateTotalUndeadKilled',
+		total = total
+	})
+end)
 
 CreateThread(function()
 	AddRelationshipGroup('undead')
