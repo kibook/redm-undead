@@ -328,6 +328,7 @@ CreateThread(function()
 	AddRelationshipGroup('undead')
 	SetRelationshipBetweenGroups(5, `undead`, `PLAYER`)
 	SetRelationshipBetweenGroups(5, `PLAYER`, `undead`)
+	SetRelationshipBetweenGroups(5, `COP`, `COP`)
 
 	TriggerServerEvent('undead:newPlayer')
 
