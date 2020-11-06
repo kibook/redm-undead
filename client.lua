@@ -232,6 +232,10 @@ function AddUndeadSpawn(spawns, ped)
 		end
 	end
 
+	if IsPedOnMount(ped) then
+		DelEnt(GetMount(ped))
+	end
+
 	Wait(0)
 
 	table.insert(spawns, {ped = ped, x = x, y = y, z = z, h = h, hasLos = hasLos})
