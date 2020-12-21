@@ -1,0 +1,46 @@
+@font-face {
+	font-family: "Chinese Rocks";
+	src: url('CHINESER.TTF');
+}
+
+html, body {
+	width: 100%;
+	height: 100%;
+	background: none;
+	padding: 0;
+	margin: 0;
+	font-family: "Chinese Rocks";
+	font-size: 1vw;
+}
+
+#scoreboard {
+	display: none;
+	position: absolute;
+	bottom: 2%;
+	right: 2%;
+	transform: translate(-50%, -50%);
+	background-color: rgba(0, 0, 0, 0.5);
+	color: white;
+}
+
+#player-scores {
+	display: table;
+}
+
+.player-score {
+	display: table-row;
+}
+
+.player, .score {
+	display: table-cell;
+	padding: 0.5vh 0.5vw;
+}
+
+#total-kills-container {
+	text-align: right;
+	padding: 1vh 1vw;
+}
+
+#total-kills-container .label, #total-kills {
+	display: inline;
+}
