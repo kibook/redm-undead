@@ -183,7 +183,7 @@ AddEventHandler('undead:setZone', function(zone)
 	if zone.radius then
 		ZoneBlip = BlipAddForRadius(Config.ZoneBlipSprite, zone.x, zone.y, zone.z, zone.radius)
 		SetBlipNameFromPlayerString(ZoneBlip, CreateVarString(10, 'LITERAL_STRING', 'Undead Infestation'))
-		exports.notifications:Notify('An undead infestation has appeared in ' .. zone.name)
+		exports.notifications:notify('An undead infestation has appeared in ' .. zone.name)
 	end
 end)
 
