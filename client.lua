@@ -90,9 +90,9 @@ function IsInZone(ped, zone)
 		return true
 	end
 
-	local x, y, z = table.unpack(GetEntityCoords(ped))
+	local coords = GetEntityCoords(ped)
 
-	return GetDistanceBetweenCoords(x, y, z, zone.x, zone.y, zone.z, false) <= zone.radius
+	return #(coords - vector3(zone.x, zone.y, coords.z)) <= zone.radius
 end
 
 function ClearPedsInZone(zone)
@@ -132,13 +132,13 @@ function ShouldBecomeUndead(ped)
 end
 
 function ShouldCleanUp(ped1)
-	local x1, y1, z1 = table.unpack(GetEntityCoords(ped1))
+	local ped1Coords = GetEntityCoords(ped1)
 
 	for _, player in ipairs(GetActivePlayers()) do
 		local ped2 = GetPlayerPed(player)
-		local x2, y2, z2 = table.unpack(GetEntityCoords(ped2))
+		local ped2Coords = GetEntityCoords(ped2)
 
-		if GetDistanceBetweenCoords(x1, y1, z1, x2, y2, z2, true) <= Config.DespawnDistance then
+		if #(ped1Coords - ped2Coords) <= Config.DespawnDistance then
 			return false
 		end
 
