@@ -37,33 +37,33 @@ end
 function InitPlayer(player, name)
 	local license = GetIdentifier(player, 'license')
 
-	MySQL.Async.fetchScalar(
+	exports.ghmattimysql:scalar(
 		'SELECT id FROM undead WHERE id = @id',
 		{
 			['id'] = license
 		},
 		function(id)
 			if id then
-				MySQL.Async.execute(
+				exports.ghmattimysql:execute(
 					'UPDATE undead SET name = @name WHERE id = @id',
 					{
 						['name'] = name,
 						['id'] = license
 					},
-					function(affectedRows)
-						if affectedRows < 1 then
+					function(results)
+						if results.affectedRows < 1 then
 							Log('error', 'failed to update ' .. license)
 						end
 					end)
 			else
-				MySQL.Async.execute(
+				exports.ghmattimysql:execute(
 					'INSERT INTO undead (id, name, killed) VALUES (@id, @name, 0)',
 					{
 						['id'] = license,
 						['name'] = name
 					},
-					function(affectedRows)
-						if affectedRows > 0 then
+					function(results)
+						if results.affectedRows > 0 then
 							Log('success', name .. ' ' .. license .. ' was created')
 						else
 							Log('error', 'failed to initialize ' .. name .. ' ' .. license)
@@ -85,18 +85,16 @@ AddEventHandler('undead:playerKilledUndead', function()
 	local player = source
 	local license = GetIdentifier(player, 'license')
 
-	MySQL.ready(function()
-		MySQL.Async.execute(
-			'UPDATE undead SET killed = killed + 1 WHERE id = @id',
-			{
-				['id'] = license
-			},
-			function (affectedRows)
-				if affectedRows < 1 then
-					Log('error', 'failed to update kill count for ' .. license)
-				end
-			end)
-	end)
+	exports.ghmattimysql:execute(
+		'UPDATE undead SET killed = killed + 1 WHERE id = @id',
+		{
+			['id'] = license
+		},
+		function (results)
+			if results.affectedRows < 1 then
+				Log('error', 'failed to update kill count for ' .. license)
+			end
+		end)
 end)
 
 AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
@@ -104,10 +102,7 @@ AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
 		return
 	end
 
-	local player = source
-	MySQL.ready(function()
-		InitPlayer(player, name)
-	end)
+	InitPlayer(source, name)
 end)
 
 AddEventHandler('onResourceStart', function()
@@ -115,11 +110,9 @@ AddEventHandler('onResourceStart', function()
 		return
 	end
 
-	MySQL.ready(function()
-		for _, playerId in ipairs(GetPlayers()) do
-			InitPlayer(playerId, GetPlayerName(playerId))
-		end
-	end)
+	for _, playerId in ipairs(GetPlayers()) do
+		InitPlayer(playerId, GetPlayerName(playerId))
+	end
 end)
 
 function RandomZone()
@@ -163,20 +156,18 @@ RegisterCommand('undeadzone', function(source, args, raw)
 end, true)
 
 function UpdateScoreboards()
-	MySQL.ready(function()
-		MySQL.Async.fetchAll(
-			"SELECT name, killed FROM undead WHERE name <> '' AND killed <> 0 ORDER BY killed DESC LIMIT 10",
-			{},
-			function(results)
-				TriggerClientEvent('undead:updateScoreboard', -1, results)
-			end)
-		MySQL.Async.fetchScalar(
-			"SELECT SUM(killed) FROM undead",
-			{},
-			function(total)
-				TriggerClientEvent("undead:updateTotalUndeadKilled", -1, total)
-			end)
-	end)
+	exports.ghmattimysql:execute(
+		"SELECT name, killed FROM undead WHERE name <> '' AND killed <> 0 ORDER BY killed DESC LIMIT 10",
+		{},
+		function(results)
+			TriggerClientEvent('undead:updateScoreboard', -1, results)
+		end)
+	exports.ghmattimysql:scalar(
+		"SELECT SUM(killed) FROM undead",
+		{},
+		function(total)
+			TriggerClientEvent("undead:updateTotalUndeadKilled", -1, total)
+		end)
 end
 
 if Config.ZoneTimeout then
