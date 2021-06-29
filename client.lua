@@ -1,10 +1,16 @@
-local ZoneBlip = nil
-local CurrentZone = nil
-local Undead = {}
+local zoneBlip
+local currentZone
+local undead = {}
+local maskIsTaken
+local maskBlip
 
-RegisterNetEvent('undead:setZone')
-RegisterNetEvent('undead:updateScoreboard')
-RegisterNetEvent('undead:updateTotalUndeadKilled')
+RegisterNetEvent("undead:setZone")
+RegisterNetEvent("undead:updateScoreboard")
+RegisterNetEvent("undead:updateTotalUndeadKilled")
+RegisterNetEvent("undead:toggleScoreboard")
+RegisterNetEvent("undead:setMaskIsTaken")
+RegisterNetEvent("undead:morePlayersNeeded")
+RegisterNetEvent("undead:ritualCooldownActive")
 
 local entityEnumerator = {
 	__gc = function(enum)
@@ -16,7 +22,7 @@ local entityEnumerator = {
 	end
 }
 
-function EnumerateEntities(firstFunc, nextFunc, endFunc)
+local function enumerateEntities(firstFunc, nextFunc, endFunc)
 	return coroutine.wrap(function()
 		local iter, id = firstFunc()
 
@@ -39,49 +45,17 @@ function EnumerateEntities(firstFunc, nextFunc, endFunc)
 	end)
 end
 
-function EnumerateObjects()
-	return EnumerateEntities(FindFirstObject, FindNextObject, EndFindObject)
+local function enumeratePeds()
+	return enumerateEntities(FindFirstPed, FindNextPed, EndFindPed)
 end
 
-function EnumeratePeds()
-	return EnumerateEntities(FindFirstPed, FindNextPed, EndFindPed)
-end
-
-function EnumerateVehicles()
-	return EnumerateEntities(FindFirstVehicle, FindNextVehicle, EndFindVehicle)
-end
-
-function CreatePed_2(modelHash, x, y, z, heading, isNetwork, thisScriptCheck, p7, p8)
-	return Citizen.InvokeNative(0xD49F9B0955C367DE, modelHash, x, y, z, heading, isNetwork, thisScriptCheck, p7, p8)
-end
-
-function SetPedDefaultOutfit(ped, p1)
-	Citizen.InvokeNative(0x283978A15512B2FE, ped, p1)
-end
-
-function SetRandomOutfitVariation(ped, p1)
-	Citizen.InvokeNative(0x283978A15512B2FE, ped, p1)
-end
-
-function BlipAddForEntity(blip, entity)
-	return Citizen.InvokeNative(0x23f74c2fda6e7c61, blip, entity)
-end
-
-function BlipAddForRadius(blipHash, x, y, z, radius)
-	return Citizen.InvokeNative(0x45F13B7E0A15C880, blipHash, x, y, z, radius)
-end
-
-function SetBlipNameFromPlayerString(blip, playerString)
-	return Citizen.InvokeNative(0x9CB1A1623062F402, blip, playerString)
-end
-
-function DelEnt(entity)
+local function delEnt(entity)
 	SetEntityAsMissionEntity(entity, true, true)
 	DeleteEntity(entity)
 	SetEntityAsNoLongerNeeded(entity)
 end
 
-function IsInZone(ped, zone)
+local function isInZone(ped, zone)
 	if not zone then
 		return false
 	end
@@ -92,18 +66,10 @@ function IsInZone(ped, zone)
 
 	local coords = GetEntityCoords(ped)
 
-	return #(coords - vector3(zone.x, zone.y, coords.z)) <= zone.radius
+	return #(coords.xy - zone.coords.xy) <= zone.radius
 end
 
-function ClearPedsInZone(zone)
-	for ped in EnumeratePeds() do
-		if not IsPedAPlayer(ped) and IsInZone(ped, zone) then
-			DelEnt(ped)
-		end
-	end
-end
-
-function IsUndead(ped)
+local function isUndead(ped)
 	local model = GetEntityModel(ped)
 
 	for _, undead in ipairs(UndeadPeds) do
@@ -115,30 +81,39 @@ function IsUndead(ped)
 	return false
 end
 
-function ShouldBecomeUndead(ped)
-	if IsPedInGroup(ped) then
-		return false
-	end
-
+local function shouldBecomeUndead(ped)
 	if not IsPedHuman(ped) then
 		return false
 	end
 
-	if not IsInZone(ped, CurrentZone) then
+	if not isInZone(ped, currentZone) then
 		return false
+	end
+
+	if GetEntityPopulationType(ped) == 8 then
+		return false
+	end
+
+	if IsPedInAnyVehicle(ped, false) then
+		local veh = GetVehiclePedIsIn(ped, false)
+		local model = GetEntityModel(veh)
+
+		if IsThisModelATrain(model) or IsThisModelABoat(model) then
+			return false
+		end
 	end
 
 	return true
 end
 
-function ShouldCleanUp(ped1)
+local function shouldCleanUp(ped1)
 	local ped1Coords = GetEntityCoords(ped1)
 
 	for _, player in ipairs(GetActivePlayers()) do
 		local ped2 = GetPlayerPed(player)
 		local ped2Coords = GetEntityCoords(ped2)
 
-		if #(ped1Coords - ped2Coords) <= Config.DespawnDistance then
+		if #(ped1Coords - ped2Coords) <= Config.despawnDistance then
 			return false
 		end
 
@@ -150,7 +125,7 @@ function ShouldCleanUp(ped1)
 	return true
 end
 
-function HasAnyPlayerLos(ped)
+local function hasAnyPlayerLos(ped)
 	for _, player in ipairs(GetActivePlayers()) do
 		local playerPed = GetPlayerPed(player)
 
@@ -162,105 +137,63 @@ function HasAnyPlayerLos(ped)
 	return false
 end
 
-AddEventHandler('undead:setZone', function(zone)
-	if CurrentZone and zone and CurrentZone.name == zone.name then
-		return
-	end
-
-	if ZoneBlip then
-		RemoveBlip(ZoneBlip)
-	end
-
-	ClearPedsInZone(CurrentZone)
-	ClearPedsInZone(zone)
-
-	CurrentZone = zone
-
-	if not zone then
-		return
-	end
-
-	if zone.radius then
-		ZoneBlip = BlipAddForRadius(Config.ZoneBlipSprite, zone.x, zone.y, zone.z, zone.radius)
-		SetBlipNameFromPlayerString(ZoneBlip, CreateVarString(10, 'LITERAL_STRING', 'Undead Infestation'))
-		exports.notifications:notify('An undead infestation has appeared in ' .. zone.name)
-	end
-end)
-
-AddEventHandler('onResourceStop', function(resourceName)
-	if GetCurrentResourceName() == resourceName then
-		if ZoneBlip then
-			RemoveBlip(ZoneBlip)
-		end
-		ClearPedsInZone(CurrentZone)
-		RemoveRelationshipGroup('undead')
-	end
-end)
-
-function UpdateUndead(ped)
+local function updateUndead(ped)
 	if IsPedDeadOrDying(ped) then
-		if Undead[ped] then
+		if undead[ped] then
 			if GetPedSourceOfDeath(ped) == PlayerPedId() then
-				TriggerServerEvent('undead:playerKilledUndead')
+				TriggerServerEvent("undead:playerKilledUndead")
 			end
 
-			Undead[ped] = nil
+			undead[ped] = nil
 		end
 
 		SetPedAsNoLongerNeeded(ped)
-	elseif not Undead[ped] then
-		Undead[ped] = true
+	elseif not undead[ped] then
+		undead[ped] = true
 	end
 
-	if ShouldCleanUp(ped) then
-		DelEnt(ped)
-		Undead[ped] = nil
+	if shouldCleanUp(ped) then
+		delEnt(ped)
+		undead[ped] = nil
 	end
 end
 
-function AddUndeadSpawn(spawns, ped)
-	local x, y, z = table.unpack(GetEntityCoords(ped))
-	local h = GetEntityHeading(ped)
-	local hasLos = HasAnyPlayerLos(ped)
+local function addUndeadSpawn(spawns, ped)
+	local coords = GetEntityCoords(ped)
+	local heading = GetEntityHeading(ped)
+	local hasLos = hasAnyPlayerLos(ped)
 
 	if IsPedInAnyVehicle(ped, false) then
-		local veh = GetVehiclePedIsIn(ped, false)
-		local model = GetEntityModel(veh)
-
-		if not IsThisModelATrain(model) and not IsThisModelABoat(model) then
-			DelEnt(veh)
-		end
+		delEnt(GetVehiclePedIsIn(ped, false))
 	end
 
 	if IsPedOnMount(ped) then
-		DelEnt(GetMount(ped))
+		delEnt(GetMount(ped))
 	end
 
-	Wait(0)
+	table.insert(spawns, {ped = ped, coords = coords, heading = heading, hasLos = hasLos})
 
-	table.insert(spawns, {ped = ped, x = x, y = y, z = z, h = h, hasLos = hasLos})
-
-	DelEnt(ped)
+	delEnt(ped)
 end
 
-function CreateUndeadSpawns()
+local function createUndeadSpawns()
 	local spawns = {}
 
-	for ped in EnumeratePeds() do
-		Wait(0)
+	for ped in enumeratePeds() do
 		if not IsPedAPlayer(ped) then
-			if IsUndead(ped) then
-				UpdateUndead(ped)
-			elseif ShouldBecomeUndead(ped) then
-				AddUndeadSpawn(spawns, ped)
+			if isUndead(ped) then
+				updateUndead(ped)
+			elseif shouldBecomeUndead(ped) then
+				addUndeadSpawn(spawns, ped)
 			end
 		end
+		Citizen.Wait(0)
 	end
 
 	return spawns
 end
 
-function SpawnUndead(spawns)
+local function spawnUndead(spawns)
 	for _, spawn in ipairs(spawns) do
 		if not DoesEntityExist(spawn.ped) and not spawn.hasLos then
 			local undead = UndeadPeds[math.random(#UndeadPeds)]
@@ -268,24 +201,24 @@ function SpawnUndead(spawns)
 
 			RequestModel(model)
 			while not HasModelLoaded(model) do
-				Wait(0)
+				Citizen.Wait(0)
 			end
 
-			local ped = CreatePed_2(model, spawn.x, spawn.y, spawn.z, spawn.h, true, false, false, false)
+			local ped = CreatePed_2(model, spawn.coords, spawn.heading, true, false, false, false)
 			SetModelAsNoLongerNeeded(model)
 
 			SetPedOutfitPreset(ped, undead.outfit)
 
-			if Config.ShowBlips then
-				BlipAddForEntity(Config.UndeadBlipSprite, ped)
+			if Config.showBlips then
+				BlipAddForEntity(Config.undeadBlipSprite, ped)
 			end
 
-			local walkingStyle = Config.WalkingStyles[math.random(#Config.WalkingStyles)]
+			local walkingStyle = Config.walkingStyles[math.random(#Config.walkingStyles)]
 			Citizen.InvokeNative(0x923583741DC87BCE, ped, walkingStyle[1])
 			Citizen.InvokeNative(0x89F5E7ADECCCB49C, ped, walkingStyle[2])
 
-			SetEntityMaxHealth(ped, Config.UndeadHealth)
-			SetEntityHealth(ped, Config.UndeadHealth, 0)
+			SetEntityMaxHealth(ped, Config.undeadHealth)
+			SetEntityHealth(ped, Config.undeadHealth, 0)
 
 			SetPedRelationshipGroupHash(ped, `undead`)
 			SetPedCombatAttributes(ped, 46, true)
@@ -295,49 +228,169 @@ function SpawnUndead(spawns)
 
 			TaskWanderStandard(ped, 10.0, 10)
 
-			Undead[ped] = true
+			undead[ped] = true
 		end
 	end
 end
 
-local ScoreboardIsOpen = false
+local function getNumberOfPlayersInCircle()
+	local numPlayers = 0
 
-RegisterCommand('undeadscore', function(source, args, raw)
-	ScoreboardIsOpen = not ScoreboardIsOpen
+	for _, playerId in ipairs(GetActivePlayers()) do
+		local playerCoords = GetEntityCoords(GetPlayerPed(playerId))
 
+		if #(playerCoords - Config.maskCoords) < 4.0 then
+			numPlayers = numPlayers + 1
+		end
+	end
+
+	return numPlayers
+end
+
+AddEventHandler("undead:setZone", function(zone)
+	if currentZone and zone and currentZone.name == zone.name then
+		return
+	end
+
+	if zoneBlip then
+		RemoveBlip(zoneBlip)
+	end
+
+	currentZone = zone
+
+	if not zone then
+		return
+	end
+
+	if zone.radius then
+		zoneBlip = BlipAddForRadius(Config.zoneBlipSprite, zone.coords, zone.radius)
+
+		SetBlipNameFromPlayerString(zoneBlip, CreateVarString(10, "LITERAL_STRING", "Undead Infestation"))
+
+		exports.uifeed:showSimpleRightText("An undead infestation has appeared in " .. zone.name, 5000)
+	end
+end)
+
+AddEventHandler("onResourceStop", function(resourceName)
+	if GetCurrentResourceName() == resourceName then
+		if zoneBlip then
+			RemoveBlip(zoneBlip)
+		end
+
+		RemoveRelationshipGroup("undead")
+
+		RemoveBlip(maskBlip)
+	end
+end)
+
+AddEventHandler("undead:updateScoreboard", function(results)
 	SendNUIMessage({
-		type = 'toggleScoreboard'
-	})
-end, false)
-
-AddEventHandler('undead:updateScoreboard', function(results)
-	SendNUIMessage({
-		type = 'updateScoreboard',
+		type = "updateScoreboard",
 		scores = json.encode(results)
 	})
 end)
 
-AddEventHandler('undead:updateTotalUndeadKilled', function(total)
+AddEventHandler("undead:updateTotalUndeadKilled", function(total)
 	SendNUIMessage({
-		type = 'updateTotalUndeadKilled',
+		type = "updateTotalUndeadKilled",
 		total = total
 	})
 end)
 
-CreateThread(function()
-	AddRelationshipGroup('undead')
+AddEventHandler("undead:toggleScoreboard", function()
+	SendNUIMessage({
+		type = "toggleScoreboard"
+	})
+end)
+
+local maskPrompt = Uiprompt:new(`INPUT_DYNAMIC_SCENARIO`, "Take Mask", nil, false)
+maskPrompt:setHoldMode(true)
+maskPrompt:setOnHoldModeJustCompleted(function()
+	TriggerServerEvent("undead:takeOrReturnMask", getNumberOfPlayersInCircle())
+end)
+
+AddEventHandler("undead:setMaskIsTaken", function(isTaken)
+	if maskIsTaken ~= nil then
+		local subtitle = "The ~COLOR_RED~undead~COLOR_WHITE~ "
+
+		if isTaken then
+			subtitle = subtitle .. "walk the earth"
+		else
+			subtitle = subtitle .. "have returned to rest"
+		end
+
+		exports.uifeed:showTopNotification("~COLOR_GREEN~The ritual~COLOR_WHITE~ has been performed", subtitle, 5000)
+	end
+
+	maskIsTaken = isTaken
+
+	if maskIsTaken then
+		RemoveImap(`undead_ritual_mask`)
+		maskPrompt:setText("Return Mask")
+	else
+		RequestImap(`undead_ritual_mask`)
+		maskPrompt:setText("Take Mask")
+	end
+end)
+
+AddEventHandler("undead:morePlayersNeeded", function(numPlayersNeeded)
+	exports.uifeed:showObjective("~COLOR_RED~" .. numPlayersNeeded .. " more " .. (numPlayersNeeded == 1 and "player" or "players") .. "~COLOR_WHITE~ must stand in the circle to perform ~COLOR_GREEN~the ritual~COLOR_WHITE~.", 5000)
+end)
+
+AddEventHandler("undead:ritualCooldownActive", function()
+	exports.uifeed:showObjective("Someone is already performing ~COLOR_GREEN~the ritual~COLOR_WHITE~.", 5000)
+end)
+
+Citizen.CreateThread(function()
+	AddRelationshipGroup("undead")
 	SetRelationshipBetweenGroups(5, `undead`, `PLAYER`)
 	SetRelationshipBetweenGroups(5, `PLAYER`, `undead`)
 	SetRelationshipBetweenGroups(5, `COP`, `COP`)
 
-	TriggerServerEvent('undead:newPlayer')
+	TriggerServerEvent("undead:newPlayer")
 
 	while true do
-		Wait(0)
+		if currentZone and isInZone(PlayerPedId(), currentZone) then
+			local spawns = createUndeadSpawns()
+			spawnUndead(spawns)
 
-		if CurrentZone then
-			local spawns = CreateUndeadSpawns()
-			SpawnUndead(spawns)
+			Citizen.Wait(0)
+		else
+			Citizen.Wait(2000)
 		end
+	end
+end)
+
+Citizen.CreateThread(function()
+	if Config.enableRitual then
+		RequestImap(`undead_ritual_circle`)
+		RequestImap(`undead_ritual_mask`)
+
+		maskBlip = BlipAddForCoord(1664425300, Config.maskBlipCoords)
+		SetBlipSprite(maskBlip, Config.maskBlipSprite)
+		SetBlipNameFromPlayerString(maskBlip, CreateVarString(10, "LITERAL_STRING", Config.maskBlipName))
+
+		while true do
+			local coords = GetEntityCoords(PlayerPedId())
+
+			if #(coords - Config.maskCoords) < 1.5 then
+				if not maskPrompt:isEnabled() then
+					maskPrompt:setEnabledAndVisible(true)
+				end
+
+				maskPrompt:handleEvents()
+
+				Citizen.Wait(0)
+			else
+				if maskPrompt:isEnabled() then
+					maskPrompt:setEnabledAndVisible(false)
+				end
+
+				Citizen.Wait(1000)
+			end
+		end
+	else
+		RemoveImap(`undead_ritual_circle`)
+		RemoveImap(`undead_ritual_mask`)
 	end
 end)

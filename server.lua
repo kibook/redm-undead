@@ -1,166 +1,118 @@
-RegisterNetEvent('undead:newPlayer')
-RegisterNetEvent('undead:playerKilledUndead')
+RegisterNetEvent("undead:newPlayer")
+RegisterNetEvent("undead:playerKilledUndead")
+RegisterNetEvent("undead:setZone")
+RegisterNetEvent("undead:takeOrReturnMask")
 
-local CurrentZone = (Config.DefaultZone and Config.Zones[Config.DefaultZone] or nil)
+local currentZone = Config.defaultZone and Config.zones[Config.defaultZone]
+local zoneTimeElapsed = Config.zoneTimeout
+local maskIsTaken = false
+local ritualCooldownActive = false
 
-function GetIdentifier(id, kind)
-	local identifiers = {}
+local function getIdentifier(id, kind)
+	local prefix = kind .. ":"
 
 	for _, identifier in ipairs(GetPlayerIdentifiers(id)) do
-		local prefix = kind .. ':'
-		local len = string.len(prefix)
-		if string.sub(identifier, 1, len) == prefix then
-			return string.sub(identifier, len + 1)
+		if string.sub(identifier, 1, #prefix) == prefix then
+			return identifier
 		end
 	end
 
 	return nil
 end
 
-local LogColors = {
-	['name'] = '\x1B[31m',
-	['default'] = '\x1B[0m',
-	['error'] = '\x1B[31m',
-	['success'] = '\x1B[32m'
+local logColors = {
+	["default"] = "\x1B[0m",
+	["error"] = "\x1B[31m",
+	["success"] = "\x1B[32m"
 }
 
-function Log(label, message)
-	local color = LogColors[label]
+local function log(label, message)
+	local color = logColors[label]
 
 	if not color then
-		color = LogColors.default
+		color = logColors.default
 	end
 
-	print(string.format('%s[Undead] %s[%s]%s %s', LogColors.name, color, label, LogColors.default, message))
+	print(string.format("%s[%s]%s %s", color, label, logColors.default, message))
 end
 
-function InitPlayer(player, name)
-	local license = GetIdentifier(player, 'license')
+local function initPlayer(player, name)
+	local license = getIdentifier(player, "license")
 
 	exports.ghmattimysql:scalar(
-		'SELECT id FROM undead WHERE id = @id',
+		"SELECT id FROM undead WHERE license = @license",
 		{
-			['id'] = license
+			["license"] = license
 		},
 		function(id)
 			if id then
 				exports.ghmattimysql:execute(
-					'UPDATE undead SET name = @name WHERE id = @id',
+					"UPDATE undead SET name = @name WHERE id = @id",
 					{
-						['name'] = name,
-						['id'] = license
+						["name"] = name,
+						["id"] = id
 					},
 					function(results)
 						if results.affectedRows < 1 then
-							Log('error', 'failed to update ' .. license)
+							log("error", "failed to update " .. license)
 						end
 					end)
 			else
 				exports.ghmattimysql:execute(
-					'INSERT INTO undead (id, name, killed) VALUES (@id, @name, 0)',
+					"INSERT INTO undead (license, name) VALUES (@license, @name)",
 					{
-						['id'] = license,
-						['name'] = name
+						["license"] = license,
+						["name"] = name
 					},
 					function(results)
 						if results.affectedRows > 0 then
-							Log('success', name .. ' ' .. license .. ' was created')
+							log("success", name .. " " .. license .. " was created")
 						else
-							Log('error', 'failed to initialize ' .. name .. ' ' .. license)
+							log("error", "failed to initialize " .. name .. " " .. license)
 						end
 					end)
 			end
 		end)
 end
 
-AddEventHandler('undead:newPlayer', function()
-	TriggerClientEvent('undead:setZone', source, CurrentZone)
-end)
-
-AddEventHandler('undead:playerKilledUndead', function()
-	if not Config.EnableSql then
-		return
-	end
-
-	local player = source
-	local license = GetIdentifier(player, 'license')
-
-	exports.ghmattimysql:execute(
-		'UPDATE undead SET killed = killed + 1 WHERE id = @id',
-		{
-			['id'] = license
-		},
-		function (results)
-			if results.affectedRows < 1 then
-				Log('error', 'failed to update kill count for ' .. license)
-			end
-		end)
-end)
-
-AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
-	if not Config.EnableSql then
-		return
-	end
-
-	InitPlayer(source, name)
-end)
-
-AddEventHandler('onResourceStart', function()
-	if not Config.EnableSql then
-		return
-	end
-
-	for _, playerId in ipairs(GetPlayers()) do
-		InitPlayer(playerId, GetPlayerName(playerId))
-	end
-end)
-
-function RandomZone()
-	return Config.Zones[Config.ZoneRotation[math.random(#Config.ZoneRotation)]]
+local function randomZone()
+	return Config.zones[Config.zoneRotation[math.random(#Config.zoneRotation)]]
 end
 
-function SetZone(zone)
-	if zone == 'random' then
-		CurrentZone = RandomZone()
+local function setZone(zone)
+	if currentZone and zone == currentZone.name then
+		return
+	end
+
+	if zone == "random" then
+		currentZone = randomZone()
 	elseif zone then
-		CurrentZone = Config.Zones[zone]
+		currentZone = Config.zones[zone]
 	else
-		CurrentZone = nil
+		currentZone = nil
 	end
 
-	TriggerClientEvent('undead:setZone', -1, CurrentZone)
+	zoneTimeElapsed = 0
+
+	TriggerClientEvent("undead:setZone", -1, currentZone)
 end
 
-function CreateZone(name, x, y, z, radius)
-	Config.Zones[name] = {
+local function createZone(name, coords, radius)
+	Config.zones[name] = {
 		name = name,
-		x = x,
-		y = y,
-		z = z,
+		coords = coords,
 		radius = radius
 	}
-	SetZone(name)
+
+	setZone(name)
 end
 
-RegisterCommand('undeadzone', function(source, args, raw)
-	if #args >= 5 then
-		local name = args[1]
-		local x = tonumber(args[2]) * 1.0
-		local y = tonumber(args[3]) * 1.0
-		local z = tonumber(args[4]) * 1.0
-		local r = tonumber(args[5]) * 1.0
-		CreateZone(name, x, y, z, r)
-	else
-		SetZone(args[1])
-	end
-end, true)
-
-function UpdateScoreboards()
+local function updateScoreboard()
 	exports.ghmattimysql:execute(
 		"SELECT name, killed FROM undead WHERE name <> '' AND killed <> 0 ORDER BY killed DESC LIMIT 10",
 		{},
 		function(results)
-			TriggerClientEvent('undead:updateScoreboard', -1, results)
+			TriggerClientEvent("undead:updateScoreboard", -1, results)
 		end)
 	exports.ghmattimysql:scalar(
 		"SELECT SUM(killed) FROM undead",
@@ -170,28 +122,126 @@ function UpdateScoreboards()
 		end)
 end
 
-if Config.ZoneTimeout then
-	CreateThread(function()
-			local elapsed = Config.ZoneTimeout
+AddEventHandler("undead:newPlayer", function()
+	TriggerClientEvent("undead:setZone", source, currentZone)
+	TriggerClientEvent("undead:setMaskIsTaken", source, maskIsTaken)
+end)
 
+AddEventHandler("undead:playerKilledUndead", function()
+	local source = source
+
+	if not Config.enableDb then
+		return
+	end
+
+	local license = getIdentifier(source, "license")
+
+	exports.ghmattimysql:execute(
+		"UPDATE undead SET killed = killed + 1 WHERE license = @license",
+		{
+			["license"] = license
+		},
+		function (results)
+			if results.affectedRows < 1 then
+				log("error", "failed to update kill count for " .. license)
+			end
+		end)
+end)
+
+AddEventHandler("undead:setZone", function(zoneName)
+	setZone(zoneName)
+end)
+
+AddEventHandler("undead:takeOrReturnMask", function(numPlayers)
+	if ritualCooldownActive then
+		TriggerClientEvent("undead:ritualCooldownActive", source)
+		return
+	end
+
+	local totalPlayers = #GetPlayers()
+	local majority = math.ceil(totalPlayers / 2) + (totalPlayers % 2 == 0 and 1 or 0)
+	local numPlayersNeeded = majority - numPlayers
+
+	if numPlayersNeeded < 1 then
+		maskIsTaken = not maskIsTaken
+
+		TriggerClientEvent("undead:setMaskIsTaken", -1, maskIsTaken)
+
+		if maskIsTaken then
+			setZone("world")
+		else
+			setZone()
+		end
+	else
+		TriggerClientEvent("undead:morePlayersNeeded", source, numPlayersNeeded)
+	end
+
+	ritualCooldownActive = true
+
+	Citizen.SetTimeout(5000, function()
+		ritualCooldownActive = false
+	end)
+end)
+
+AddEventHandler("playerConnecting", function(name, setKickReason, deferrals)
+	if not Config.enableDb then
+		return
+	end
+
+	initPlayer(source, name)
+end)
+
+AddEventHandler("onResourceStart", function()
+	if not Config.enableDb then
+		return
+	end
+
+	for _, playerId in ipairs(GetPlayers()) do
+		initPlayer(playerId, GetPlayerName(playerId))
+	end
+end)
+
+RegisterCommand("undeadzone", function(source, args, raw)
+	if #args >= 5 then
+		local name = args[1]
+		local x = tonumber(args[2]) + 0.0
+		local y = tonumber(args[3]) + 0.0
+		local z = tonumber(args[4]) + 0.0
+		local r = tonumber(args[5]) + 0.0
+		createZone(name, vector3(x, y, z), r)
+	else
+		setZone(args[1])
+	end
+end, true)
+
+RegisterCommand("undeadscore", function(source, args, raw)
+	TriggerClientEvent("undead:toggleScoreboard", source)
+end, true)
+
+if Config.zoneTimeout then
+	Citizen.CreateThread(function()
 			while true do
-				Wait(1000)
+				local t1 = os.time()
+				Citizen.Wait(1000)
+				local t2 = os.time()
 
-				if elapsed >= Config.ZoneTimeout then
-					SetZone('random')
-					elapsed = 0
+				if zoneTimeElapsed >= Config.zoneTimeout then
+					setZone("random")
+					zoneTimeElapsed = 0
 				else
-					elapsed = elapsed + 1
+					zoneTimeElapsed = zoneTimeElapsed + (t2 - t1)
 				end
 			end
 	end)
 end
 
-if Config.EnableSql then
-	CreateThread(function()
+if Config.enableDb then
+	exports.ghmattimysql:execute("CREATE TABLE IF NOT EXISTS undead (id INT NOT NULL AUTO_INCREMENT, license VARCHAR(48) NOT NULL, name VARCHAR(255) NOT NULL, killed INT UNSIGNED NOT NULL, PRIMARY KEY (id))")
+
+	Citizen.CreateThread(function()
 		while true do
-			Wait(1000)
-			UpdateScoreboards()
+			updateScoreboard()
+			Citizen.Wait(1000)
 		end
 	end)
 end
