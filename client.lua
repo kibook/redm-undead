@@ -279,7 +279,11 @@ AddEventHandler("onResourceStop", function(resourceName)
 
 		RemoveRelationshipGroup("undead")
 
-		RemoveBlip(maskBlip)
+		if Config.enableRitual then
+			RemoveBlip(maskBlip)
+			RemoveImap(`undead_ritual_circle`)
+			RemoveImap(`undead_ritual_mask`)
+		end
 	end
 end)
 
@@ -389,8 +393,5 @@ Citizen.CreateThread(function()
 				Citizen.Wait(1000)
 			end
 		end
-	else
-		RemoveImap(`undead_ritual_circle`)
-		RemoveImap(`undead_ritual_mask`)
 	end
 end)

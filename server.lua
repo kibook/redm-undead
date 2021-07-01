@@ -124,7 +124,10 @@ end
 
 AddEventHandler("undead:newPlayer", function()
 	TriggerClientEvent("undead:setZone", source, currentZone)
-	TriggerClientEvent("undead:setMaskIsTaken", source, maskIsTaken)
+
+	if Config.enableRitual then
+		TriggerClientEvent("undead:setMaskIsTaken", source, maskIsTaken)
+	end
 end)
 
 AddEventHandler("undead:playerKilledUndead", function()
