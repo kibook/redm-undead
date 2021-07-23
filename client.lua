@@ -283,6 +283,8 @@ AddEventHandler("onResourceStop", function(resourceName)
 			RemoveBlip(maskBlip)
 			RemoveImap(`undead_ritual_circle`)
 			RemoveImap(`undead_ritual_mask`)
+
+			RemoveImap(`undead_valentine`)
 		end
 	end
 end)
@@ -331,9 +333,13 @@ AddEventHandler("undead:setMaskIsTaken", function(isTaken)
 	if maskIsTaken then
 		RemoveImap(`undead_ritual_mask`)
 		maskPrompt:setText("Return Mask")
+
+		RequestImap(`undead_valentine`)
 	else
 		RequestImap(`undead_ritual_mask`)
 		maskPrompt:setText("Take Mask")
+
+		RemoveImap(`undead_valentine`)
 	end
 end)
 
