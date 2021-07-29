@@ -7,6 +7,7 @@ local currentZone = Config.defaultZone and Config.zones[Config.defaultZone]
 local zoneTimeElapsed = Config.zoneTimeout
 local maskIsTaken = false
 local ritualCooldownActive = false
+local dbReady = false
 
 local function getIdentifier(id, kind)
 	local prefix = kind .. ":"
@@ -133,7 +134,7 @@ end)
 AddEventHandler("undead:playerKilledUndead", function()
 	local source = source
 
-	if not Config.enableDb then
+	if not dbReady then
 		return
 	end
 
@@ -187,21 +188,11 @@ AddEventHandler("undead:takeOrReturnMask", function(numPlayers)
 end)
 
 AddEventHandler("playerConnecting", function(name, setKickReason, deferrals)
-	if not Config.enableDb then
+	if not dbReady then
 		return
 	end
 
 	initPlayer(source, name)
-end)
-
-AddEventHandler("onResourceStart", function()
-	if not Config.enableDb then
-		return
-	end
-
-	for _, playerId in ipairs(GetPlayers()) do
-		initPlayer(playerId, GetPlayerName(playerId))
-	end
 end)
 
 RegisterCommand("undeadzone", function(source, args, raw)
@@ -239,12 +230,37 @@ if Config.zoneTimeout then
 end
 
 if Config.enableDb then
-	exports.ghmattimysql:execute("CREATE TABLE IF NOT EXISTS undead (id INT NOT NULL AUTO_INCREMENT, license VARCHAR(48) NOT NULL, name VARCHAR(255) NOT NULL, killed INT UNSIGNED NOT NULL, PRIMARY KEY (id))")
+	exports.ghmattimysql:transaction(
+		{
+			[[
+			CREATE TABLE IF NOT EXISTS undead (
+				id INT NOT NULL AUTO_INCREMENT,
+				license VARCHAR(48) NOT NULL,
+				name VARCHAR(255) NOT NULL,
+				killed INT UNSIGNED NOT NULL DEFAULT 0,
+				PRIMARY KEY (id)
+			)
+			]]
+		},
+		{},
+		function(success)
+			if success then
+				dbReady = true
 
-	Citizen.CreateThread(function()
-		while true do
-			updateScoreboard()
-			Citizen.Wait(1000)
-		end
-	end)
+				log("success", "Connected to database")
+
+				for _, playerId in ipairs(GetPlayers()) do
+					initPlayer(playerId, GetPlayerName(playerId))
+				end
+
+				Citizen.CreateThread(function()
+					while true do
+						updateScoreboard()
+						Citizen.Wait(1000)
+					end
+				end)
+			else
+				log("error", "Failed to connect to database")
+			end
+		end)
 end
