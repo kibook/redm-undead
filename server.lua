@@ -38,12 +38,12 @@ local function log(label, message)
 end
 
 local function initPlayer(player, name)
-	local license = getIdentifier(player, "license")
+	local identifier = getIdentifier(player, Config.dbIdentifier)
 
 	exports.ghmattimysql:scalar(
-		"SELECT id FROM undead WHERE license = @license",
+		"SELECT id FROM undead WHERE identifier = @identifier",
 		{
-			["license"] = license
+			["identifier"] = identifier
 		},
 		function(id)
 			if id then
@@ -55,21 +55,21 @@ local function initPlayer(player, name)
 					},
 					function(results)
 						if results.affectedRows < 1 then
-							log("error", "failed to update " .. license)
+							log("error", "failed to update " .. identifier)
 						end
 					end)
 			else
 				exports.ghmattimysql:execute(
-					"INSERT INTO undead (license, name) VALUES (@license, @name)",
+					"INSERT INTO undead (identifier, name) VALUES (@identifier, @name)",
 					{
-						["license"] = license,
+						["identifier"] = identifier,
 						["name"] = name
 					},
 					function(results)
 						if results.affectedRows > 0 then
-							log("success", name .. " " .. license .. " was created")
+							log("success", name .. " " .. identifier .. " was created")
 						else
-							log("error", "failed to initialize " .. name .. " " .. license)
+							log("error", "failed to initialize " .. name .. " " .. identifier)
 						end
 					end)
 			end
@@ -138,16 +138,16 @@ AddEventHandler("undead:playerKilledUndead", function()
 		return
 	end
 
-	local license = getIdentifier(source, "license")
+	local identifier = getIdentifier(source, Config.dbIdentifier)
 
 	exports.ghmattimysql:execute(
-		"UPDATE undead SET killed = killed + 1 WHERE license = @license",
+		"UPDATE undead SET killed = killed + 1 WHERE identifier = @identifier",
 		{
-			["license"] = license
+			["identifier"] = identifier
 		},
 		function (results)
 			if results.affectedRows < 1 then
-				log("error", "failed to update kill count for " .. license)
+				log("error", "failed to update kill count for " .. identifier)
 			end
 		end)
 end)
@@ -235,7 +235,7 @@ if Config.enableDb then
 			[[
 			CREATE TABLE IF NOT EXISTS undead (
 				id INT NOT NULL AUTO_INCREMENT,
-				license VARCHAR(48) NOT NULL,
+				identifier VARCHAR(255) NOT NULL,
 				name VARCHAR(255) NOT NULL,
 				killed INT UNSIGNED NOT NULL DEFAULT 0,
 				PRIMARY KEY (id)

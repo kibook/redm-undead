@@ -24,6 +24,9 @@ Config.zoneBlipSprite = 693035517
 -- Whether to keep track of undead kills in the MySQL database.
 Config.enableDb = true
 
+-- Which player identifier to use in the database.
+Config.dbIdentifier = "license"
+
 -- Whether to enable the ritual site where players can vote to toggle the undead on/off.
 Config.enableRitual = true
 
