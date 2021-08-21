@@ -1,11 +1,24 @@
 -- The coordinates of the mask in at the ritual site.
 local maskCoords = vector3(-5770.856934, -4400.763672, 2.771050)
 
+-- The coordinates of the entrance to the catacombs
+local enterCoords = vector3(-5773.443, -4400.926, 5.332)
+
+-- The coordinates of the exit from the catacombs
+local exitCoords = vector3(-5768.671, -4411.292, -20.769)
+
+-- The coordinates of the centre of the catacombs
+local catacombsCoords = vector3(-5765.440, -4403.952, -22.571)
+
+-- The audio scene to use to mute ambient audio when in the catacombs
+local catacombsAudioScene = "FUS2_Intro_Arthur_Drugged_Scene"
+
 local zoneBlip
 local currentZone
 local undead = {}
 local maskIsTaken
 local ritualBlip
+local isInCatacombs = false
 
 RegisterNetEvent("undead:setZone")
 RegisterNetEvent("undead:updateScoreboard")
@@ -288,6 +301,10 @@ AddEventHandler("onResourceStop", function(resourceName)
 			RemoveImap(`undead_ritual_mask`)
 
 			RemoveImap(`undead_valentine`)
+
+			if isInCatacombs then
+				StopAudioScene(catacombsAudioScene)
+			end
 		end
 	end
 end)
@@ -310,6 +327,26 @@ AddEventHandler("undead:toggleScoreboard", function()
 	SendNUIMessage({
 		type = "toggleScoreboard"
 	})
+end)
+
+local enterPrompt = Uiprompt:new(`INPUT_DYNAMIC_SCENARIO`, "Enter the catacombs", nil, false)
+enterPrompt:setHoldMode(true)
+enterPrompt:setOnHoldModeJustCompleted(function()
+	DoScreenFadeOut(1000)
+	Citizen.Wait(1000)
+	SetEntityCoordsNoOffset(PlayerPedId(), exitCoords)
+	Citizen.Wait(1000)
+	DoScreenFadeIn(1000)
+end)
+
+local exitPrompt = Uiprompt:new(`INPUT_DYNAMIC_SCENARIO`, "Exit the catacombs", nil, false)
+exitPrompt:setHoldMode(true)
+exitPrompt:setOnHoldModeJustCompleted(function()
+	DoScreenFadeOut(1000)
+	Citizen.Wait(1000)
+	SetEntityCoordsNoOffset(PlayerPedId(), enterCoords)
+	Citizen.Wait(1000)
+	DoScreenFadeIn(1000)
 end)
 
 local maskPrompt = Uiprompt:new(`INPUT_DYNAMIC_SCENARIO`, "Take Mask", nil, false)
@@ -384,7 +421,36 @@ Citizen.CreateThread(function()
 		SetBlipNameFromPlayerString(ritualBlip, CreateVarString(10, "LITERAL_STRING", Config.ritualBlipName))
 
 		while true do
+			local canWait = true
 			local coords = GetEntityCoords(PlayerPedId())
+
+			if #(coords - enterCoords) < 5.0 then
+				if not enterPrompt:isEnabled() then
+					enterPrompt:setEnabledAndVisible(true)
+				end
+
+				enterPrompt:handleEvents()
+
+				canWait = false
+			else
+				if enterPrompt:isEnabled() then
+					enterPrompt:setEnabledAndVisible(false)
+				end
+			end
+
+			if #(coords - exitCoords) < 3.0 then
+				if not exitPrompt:isEnabled() then
+					exitPrompt:setEnabledAndVisible(true)
+				end
+
+				exitPrompt:handleEvents()
+
+				canWait = false
+			else
+				if exitPrompt:isEnabled() then
+					exitPrompt:setEnabledAndVisible(false)
+				end
+			end
 
 			if #(coords - maskCoords) < 1.5 then
 				if not maskPrompt:isEnabled() then
@@ -393,14 +459,29 @@ Citizen.CreateThread(function()
 
 				maskPrompt:handleEvents()
 
-				Citizen.Wait(0)
+				canWait = false
 			else
 				if maskPrompt:isEnabled() then
 					maskPrompt:setEnabledAndVisible(false)
 				end
-
-				Citizen.Wait(1000)
 			end
+
+			if #(coords - catacombsCoords) < 20.0 then
+				if not isInCatacombs then
+					isInCatacombs = true
+				end
+
+				if not IsAudioSceneActive(catacombsAudioScene) then
+					StartAudioScene(catacombsAudioScene)
+				end
+			else
+				if isInCatacombs then
+					isInCatacombs = false
+					StopAudioScene(catacombsAudioScene)
+				end
+			end
+
+			Citizen.Wait(canWait and 1000 or 0)
 		end
 	end
 end)

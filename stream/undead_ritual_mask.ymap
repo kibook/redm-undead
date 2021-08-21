@@ -10,7 +10,7 @@
     <Item type="CEntityDef">
       <archetypeName>p_maskolmec01x</archetypeName>
       <flags value="32"/>
-      <position x="-5770.856934" y="-4400.763672" z="2.771050"/>
+      <position x="-5770.856934" y="-4400.763672" z="-27.2679"/>
       <rotation w="0.005420" x="0.000000" y="-0.000000" z="-0.999985"/>
       <scaleXY value="1"/>
       <scaleZ value="1"/>
