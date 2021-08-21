@@ -30,17 +30,14 @@ Config.dbIdentifier = "license"
 -- Whether to enable the ritual site where players can vote to toggle the undead on/off.
 Config.enableRitual = true
 
--- The coordinates of the mask in at the ritual site.
-Config.maskCoords = vector3(-5770.856934, -4400.763672, 2.771050)
-
 -- The coordinates to place the blip for the ritual site on the map.
-Config.maskBlipCoords = vector3(-5769.294, -4429.829, 9.04)
+Config.ritualBlipCoords = vector3(-5769.294, -4429.829, 9.04)
 
 -- The sprite used for the ritual site blip.
-Config.maskBlipSprite = `blip_ambient_hunter`
+Config.ritualBlipSprite = `blip_ambient_hunter`
 
 -- The name used for the ritual site blip.
-Config.maskBlipName = "Ritual Site"
+Config.ritualBlipName = "Ritual Site"
 
 -- The walking styles that undead peds will use.
 Config.walkingStyles = {

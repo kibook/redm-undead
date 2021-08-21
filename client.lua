@@ -1,8 +1,11 @@
+-- The coordinates of the mask in at the ritual site.
+local maskCoords = vector3(-5770.856934, -4400.763672, 2.771050)
+
 local zoneBlip
 local currentZone
 local undead = {}
 local maskIsTaken
-local maskBlip
+local ritualBlip
 
 RegisterNetEvent("undead:setZone")
 RegisterNetEvent("undead:updateScoreboard")
@@ -239,7 +242,7 @@ local function getNumberOfPlayersInCircle()
 	for _, playerId in ipairs(GetActivePlayers()) do
 		local playerCoords = GetEntityCoords(GetPlayerPed(playerId))
 
-		if #(playerCoords - Config.maskCoords) < 4.0 then
+		if #(playerCoords - maskCoords) < 4.0 then
 			numPlayers = numPlayers + 1
 		end
 	end
@@ -280,7 +283,7 @@ AddEventHandler("onResourceStop", function(resourceName)
 		RemoveRelationshipGroup("undead")
 
 		if Config.enableRitual then
-			RemoveBlip(maskBlip)
+			RemoveBlip(ritualBlip)
 			RemoveImap(`undead_ritual_circle`)
 			RemoveImap(`undead_ritual_mask`)
 
@@ -376,14 +379,14 @@ Citizen.CreateThread(function()
 		RequestImap(`undead_ritual_circle`)
 		RequestImap(`undead_ritual_mask`)
 
-		maskBlip = BlipAddForCoord(1664425300, Config.maskBlipCoords)
-		SetBlipSprite(maskBlip, Config.maskBlipSprite)
-		SetBlipNameFromPlayerString(maskBlip, CreateVarString(10, "LITERAL_STRING", Config.maskBlipName))
+		ritualBlip = BlipAddForCoord(1664425300, Config.ritualBlipCoords)
+		SetBlipSprite(ritualBlip, Config.ritualBlipSprite)
+		SetBlipNameFromPlayerString(ritualBlip, CreateVarString(10, "LITERAL_STRING", Config.ritualBlipName))
 
 		while true do
 			local coords = GetEntityCoords(PlayerPedId())
 
-			if #(coords - Config.maskCoords) < 1.5 then
+			if #(coords - maskCoords) < 1.5 then
 				if not maskPrompt:isEnabled() then
 					maskPrompt:setEnabledAndVisible(true)
 				end
