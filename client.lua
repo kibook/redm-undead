@@ -1,8 +1,8 @@
 -- The coordinates of the mask in at the ritual site.
-local maskCoords = vector3(-5770.856934, -4400.763672, 2.771050)
+local maskCoords = vector3(-5770.856, -4400.763, -27.267)
 
 -- The coordinates of the entrance to the catacombs
-local enterCoords = vector3(-5773.443, -4400.926, 5.332)
+local enterCoords = vector3(-5773.695, -4404.233, 7.601)
 
 -- The coordinates of the exit from the catacombs
 local exitCoords = vector3(-5768.671, -4411.292, -20.769)
@@ -424,7 +424,7 @@ Citizen.CreateThread(function()
 			local canWait = true
 			local coords = GetEntityCoords(PlayerPedId())
 
-			if #(coords - enterCoords) < 5.0 then
+			if #(coords - enterCoords) < 2.0 then
 				if not enterPrompt:isEnabled() then
 					enterPrompt:setEnabledAndVisible(true)
 				end
@@ -438,7 +438,7 @@ Citizen.CreateThread(function()
 				end
 			end
 
-			if #(coords - exitCoords) < 3.0 then
+			if #(coords - exitCoords) < 1.5 then
 				if not exitPrompt:isEnabled() then
 					exitPrompt:setEnabledAndVisible(true)
 				end
