@@ -9,9 +9,9 @@
   <entities>
     <Item type="CEntityDef">
       <archetypeName>mp_p_rock_mssgry_lrg_b</archetypeName>
-      <flags value="1572865"/>
-      <position x="-5760.904297" y="-4390.575684" z="-27.07713"/>
-      <rotation w="0.596963" x="0.137595" y="0.174344" z="0.770913"/>
+      <flags value="1572897"/>
+      <position x="-5760.748047" y="-4390.632324" z="-27.077129"/>
+      <rotation w="0.618405" x="0.037096" y="0.274896" z="0.735277"/>
       <scaleXY value="1"/>
       <scaleZ value="1"/>
       <parentIndex value="-1"/>
