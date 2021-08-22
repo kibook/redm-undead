@@ -31,7 +31,7 @@ Config.dbIdentifier = "license"
 Config.enableRitual = true
 
 -- The coordinates to place the blip for the ritual site on the map.
-Config.ritualBlipCoords = vector3(-5769.294, -4429.829, 9.04)
+Config.ritualBlipCoords = vector3(-5773.696, -4404.133, 7.593)
 
 -- The sprite used for the ritual site blip.
 Config.ritualBlipSprite = `blip_ambient_hunter`
