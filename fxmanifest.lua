@@ -2,12 +2,11 @@ fx_version "cerulean"
 game "rdr3"
 rdr3_warning "I acknowledge that this is a prerelease build of RedM, and I am aware my resources *will* become incompatible once RedM ships."
 
-dependencies {
-	"uiprompt",
-	"uifeed",
-	-- You can comment this out if you disable Config.enableDb
-	"ghmattimysql"
-}
+dependency "uiprompt" -- https://github.com/kibook/redm-uiprompt
+dependency "uifeed"   -- https://github.com/kibook/redm-uifeed
+
+-- You can comment this out if you disable Config.enableDb
+dependency "ghmattimysql" -- https://github.com/GHMatti/ghmattimysql
 
 files {
 	"ui/index.html",
