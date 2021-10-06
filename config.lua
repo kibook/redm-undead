@@ -39,6 +39,14 @@ Config.ritualBlipSprite = `blip_ambient_hunter`
 -- The name used for the ritual site blip.
 Config.ritualBlipName = "Ritual Site"
 
+-- IPLs to enable/disable when the undead are enabled/disabled.
+--
+-- true means the IPL is enabled when the undead are enabled and disabled when
+-- they are disabled, while false means the opposite, the IPL is disabled when
+-- the undead are enabled and enabled when they are disabled.
+Config.ipls = {
+}
+
 -- The walking styles that undead peds will use.
 Config.walkingStyles = {
 	{"default", "very_drunk"},

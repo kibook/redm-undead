@@ -263,6 +263,16 @@ local function getNumberOfPlayersInCircle()
 	return numPlayers
 end
 
+local function toggleCustomIpls(enable)
+	for ipl, enabled in pairs(Config.ipls) do
+		if enabled == enable then
+			RequestImap(ipl)
+		else
+			RemoveImap(ipl)
+		end
+	end
+end
+
 AddEventHandler("undead:setZone", function(zone)
 	if currentZone and zone and currentZone.name == zone.name then
 		return
@@ -300,7 +310,7 @@ AddEventHandler("onResourceStop", function(resourceName)
 			RemoveImap(`undead_ritual_circle`)
 			RemoveImap(`undead_ritual_mask`)
 
-			RemoveImap(`undead_valentine`)
+			toggleCustomIpls(false)
 
 			if isInCatacombs then
 				StopAudioScene(catacombsAudioScene)
@@ -374,12 +384,12 @@ AddEventHandler("undead:setMaskIsTaken", function(isTaken)
 		RemoveImap(`undead_ritual_mask`)
 		maskPrompt:setText("Return Mask")
 
-		RequestImap(`undead_valentine`)
+		toggleCustomIpls(true)
 	else
 		RequestImap(`undead_ritual_mask`)
 		maskPrompt:setText("Take Mask")
 
-		RemoveImap(`undead_valentine`)
+		toggleCustomIpls(false)
 	end
 end)
 
