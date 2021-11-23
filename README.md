@@ -6,4 +6,4 @@ Zombie apocalypse resource that replaces human peds with "undead".
 
 - [uiprompt](https://github.com/kibook/redm-uiprompt)
 - [uifeed](https://github.com/kibook/redm-uifeed)
-- [ghmattimysql](https://github.com/GHMatti/ghmattimysql) (only if you want to use the database features)
+- [oxmysql](https://github.com/overextended/oxmysql) (only if you want to use the database features)

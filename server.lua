@@ -40,14 +40,14 @@ end
 local function initPlayer(player, name)
 	local identifier = getIdentifier(player, Config.dbIdentifier)
 
-	exports.ghmattimysql:scalar(
+	exports.oxmysql:scalar(
 		"SELECT id FROM undead WHERE identifier = @identifier",
 		{
 			["identifier"] = identifier
 		},
 		function(id)
 			if id then
-				exports.ghmattimysql:execute(
+				exports.oxmysql:execute(
 					"UPDATE undead SET name = @name WHERE id = @id",
 					{
 						["name"] = name,
@@ -59,7 +59,7 @@ local function initPlayer(player, name)
 						end
 					end)
 			else
-				exports.ghmattimysql:execute(
+				exports.oxmysql:execute(
 					"INSERT INTO undead (identifier, name) VALUES (@identifier, @name)",
 					{
 						["identifier"] = identifier,
@@ -109,13 +109,13 @@ local function createZone(name, coords, radius)
 end
 
 local function updateScoreboard()
-	exports.ghmattimysql:execute(
+	exports.oxmysql:execute(
 		"SELECT name, killed FROM undead WHERE name <> '' AND killed <> 0 ORDER BY killed DESC LIMIT 10",
 		{},
 		function(results)
 			TriggerClientEvent("undead:updateScoreboard", -1, results)
 		end)
-	exports.ghmattimysql:scalar(
+	exports.oxmysql:scalar(
 		"SELECT SUM(killed) FROM undead",
 		{},
 		function(total)
@@ -140,7 +140,7 @@ AddEventHandler("undead:playerKilledUndead", function()
 
 	local identifier = getIdentifier(source, Config.dbIdentifier)
 
-	exports.ghmattimysql:execute(
+	exports.oxmysql:execute(
 		"UPDATE undead SET killed = killed + 1 WHERE identifier = @identifier",
 		{
 			["identifier"] = identifier
@@ -230,7 +230,7 @@ if Config.zoneTimeout then
 end
 
 if Config.enableDb then
-	exports.ghmattimysql:transaction(
+	exports.oxmysql:transaction(
 		{
 			[[
 			CREATE TABLE IF NOT EXISTS undead (

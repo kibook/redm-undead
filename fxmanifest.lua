@@ -6,7 +6,7 @@ dependency "uiprompt" -- https://github.com/kibook/redm-uiprompt
 dependency "uifeed"   -- https://github.com/kibook/redm-uifeed
 
 -- You can comment this out if you disable Config.enableDb
-dependency "ghmattimysql" -- https://github.com/GHMatti/ghmattimysql
+dependency "oxmysql"  -- https://github.com/overextended/oxmysql
 
 files {
 	"ui/index.html",
